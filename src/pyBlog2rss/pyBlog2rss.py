@@ -14,9 +14,34 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+import json
+import sys
+import os
 
 from module.common.PIDhandler import PIDhandler
 from module.core.pyBlogCore import pyBlogCore
+
+def getDefaultConfigFile():
+    if sys.platform == "linux" or sys.platform == "linux2":
+        return '/etc/pyBlog2rss.config'
+
+    elif sys.platform == "darwin":
+        # MAC OS X
+        return None
+
+    elif sys.platform == "win32":
+        return 'C:\\python\\etc\\pyBlog2rss.config'
+
+    return None
+
+def getConfig():
+    _config = {}
+    config_file = getDefaultConfigFile()
+    if os.path.isfile(config_file):
+        with open(config_file) as json_data_file:
+            _config = json.load(json_data_file)
+
+    return _config
 
 if __name__ == "__main__":
 
@@ -25,10 +50,12 @@ if __name__ == "__main__":
     
     try:
 
-        dbname = ''
-        username = ''
-        password = ''
-        host = ''
+        config = getConfig()
+
+        dbname = config['dbname']
+        username =  config['username']
+        password = config['password']
+        host = config['host']
 
         core = pyBlogCore(f'dbname=\'{dbname}\' user=\'{username}\' password=\'{password}\' host=\'{host}\'')
         core.start()

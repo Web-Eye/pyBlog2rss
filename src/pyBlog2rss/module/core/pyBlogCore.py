@@ -118,7 +118,7 @@ class pyBlogCore(object):
                         sub_urls_found = False
 
                         if entries is not None:
-                    
+
                             for sub_url in entries:
 
                                 sub_urls_found = True
@@ -136,16 +136,16 @@ class pyBlogCore(object):
                                         self.__insert_feed(feed)
                                     else:
                                         break
-                        
+
                         if not sub_urls_found:
                             pass
                             # print "url: '" + url + "' has no sub_urls!"
-                    
+
                         # exists mean "feed found in database"
                         if exists:
                             break
-
-                        url = page.get_next_page_url()
+                        #
+                        # url = page.get_next_page_url()
 
                     self.__process_mails(self.__project_id)
 

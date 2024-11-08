@@ -24,8 +24,12 @@ class pyBlogPage(object):
 
     def __init__(self, url):
 
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+        }
+
         self.__url = url
-        page = requests.get(url)
+        page = requests.get(url, headers=headers)
         self._content = BeautifulSoup(page.content, 'lxml')
 
     @staticmethod
@@ -77,15 +81,23 @@ class pyBlogPage(object):
     #
     #     return html.fromstring('<a href="' + self.__url + '">' + self.__page_tree.xpath("//title")[0].text + '</a>')
 
-    
+    @staticmethod
+    def _get_rss_id(content):
+        element = content.find('div', class_='content clear')
+        if element is not None:
+            child = element.findChild()
+            if child is not None and child.get('id') is not None:
+                return child.get('id')
+
+    @staticmethod
+    def _get_title(content):
+        element = content.find('h1', class_='title_h')
+        if element is not None:
+            return element.getText
+
     def get_entries(self):
 
         retValue = []
-
-        # elements = self.__page_tree.xpath('//div[@class="content clear"]')
-        # for e in elements:
-        #     retValue.append(self.__extract_link(e))
-
         elements = self._content.findAll('div', id='shortstory')
         if elements is not None:
             for e in elements:
@@ -119,8 +131,8 @@ class pyBlogPage(object):
         element = self._content.find('div', id='shortstory')
         if element is not None:
             feed.x_rss_url = self.__url
-            # feed.x_rss_id = self.__extract_id(e, '//div[@class="content clear"]')
-            # feed.subject = self.__extract_tag(e, '//h1[@class="title_h"]', 0).text
+            feed.x_rss_id = self._get_rss_id(element)
+            feed.subject = self._get_title(element)
             # feed.x_rss_tags = self.__extract_tag(e, '//a', 1).text
             # if feed.x_rss_tags is None or feed.x_rss_tags == 'Random':
             #     feed.x_rss_tags = self.__extract_keywords()

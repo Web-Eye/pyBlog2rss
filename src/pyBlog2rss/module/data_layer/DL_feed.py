@@ -72,5 +72,5 @@ class DL_feed(object):
     def contents(self, contents):
         self.__contents = contents
 
-
-
+    def isValid(self):
+        return self.__x_rss_id and self.__x_rss_url and self.__contents

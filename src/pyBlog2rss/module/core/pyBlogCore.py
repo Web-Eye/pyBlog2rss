@@ -82,6 +82,7 @@ class pyBlogCore(object):
 
             cur.close()
 
+
     def start(self):
 
         if self.__conn is not None:
@@ -115,36 +116,27 @@ class pyBlogCore(object):
                         page = pyBlogPage(url)
                         entries = page.get_entries()
                         exists = False
-                        sub_urls_found = False
 
                         if entries is not None:
 
                             for sub_url in entries:
 
-                                sub_urls_found = True
                                 sub_page = pyBlogPage(sub_url)
                                 feed = DL_feed()
                                 feed.x_rss_feed = self.__url
                                 sub_page.parse_entry(feed)
-                                blacklisted = self.__feed_blacklisted(feed.x_rss_tags)
-                                # blacklisted = False
-                                if not blacklisted:
+                                valid = feed.isValid() and not self.__feed_blacklisted(feed.x_rss_tags)
+                                if valid:
 
                                     exists = self.__feed_exists(feed.x_rss_id)
-                                    # exists = False
                                     if not exists:
                                         self.__insert_feed(feed)
                                     else:
                                         break
 
-                        if not sub_urls_found:
-                            pass
-                            # print "url: '" + url + "' has no sub_urls!"
-
-                        # exists mean "feed found in database"
                         if exists:
                             break
-                        #
+
                         # url = page.get_next_page_url()
 
                     self.__process_mails(self.__project_id)

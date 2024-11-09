@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+from logging import exception
 
 import requests
 from bs4 import BeautifulSoup
@@ -38,49 +39,6 @@ class pyBlogPage(object):
         if link is not None and link.get('href') is not None:
             return link['href']
 
-
-    # @staticmethod
-    # def __extract_links(e):
-    #     href = html.fromstring(tostring(e))
-    #     return href.xpath("//a")
-    #
-    # @staticmethod
-    # def __extract_tag(e, path, item):
-    #     href = html.fromstring(tostring(e))
-    #     p = href.xpath(path)
-    #     if p is not None and item in p:
-    #         return p[item]
-    #
-    # @staticmethod
-    # def __extract_id(e, path):
-    #     p = e.xpath(path)
-    #     if p is not None and len(p) > 0:
-    #         element = p[0]
-    #         if element is not None:
-    #             element = element.getchildren()
-    #             if element is not None and len(element) > 0:
-    #                 element = element[0]
-    #                 return element.get('id')
-    #
-    # def __extract_keywords(self):
-    #     p = self.__page_tree.xpath('//meta[@name="keywords"]')
-    #     if p is not None and len(p) > 0:
-    #         retValue = p[0].get("content")
-    #         return retValue
-    #
-    # @staticmethod
-    # def __remove_element(e, path):
-    #     tree = html.fromstring(tostring(e))
-    #
-    #     for bad in tree.xpath(path):
-    #         bad.getparent().remove(bad)
-    #
-    #     return tree
-    #
-    # def __get_tag(self):
-    #
-    #     return html.fromstring('<a href="' + self.__url + '">' + self.__page_tree.xpath("//title")[0].text + '</a>')
-
     @staticmethod
     def _get_rss_id(content):
         element = content.find('div', class_='content clear')
@@ -93,7 +51,39 @@ class pyBlogPage(object):
     def _get_title(content):
         element = content.find('h1', class_='title_h')
         if element is not None:
-            return element.getText
+            return element.getText()
+
+    @staticmethod
+    def _get_tag(content):
+        parent = content.find('div', class_='date')
+        if parent is not None:
+            elements = parent.findAll('a')
+            if elements is not None and len(elements) > 1:
+                return elements[-1].getText()
+
+    @staticmethod
+    def _removeTag(content, name, class_):
+        element = content.find(name, class_=class_)
+        if element is not None:
+            element.decompose()
+
+        return content
+
+    def _get_keywords(self, default):
+        e = self._content.find('meta', attrs={"name": "keywords"})
+        if e is not None:
+            if e.get('content') is not None:
+                default = e.get('content')
+
+        return default
+
+    def _getPageTitle(self, default):
+        e = self._content.find('title')
+        if e is not None:
+            default = e.getText()
+
+        return default
+
 
     def get_entries(self):
 
@@ -108,44 +98,30 @@ class pyBlogPage(object):
         return retValue
 
     def parse_entry(self, feed):
-
-        # tag = self.__get_tag()
-        # p = self.__page_tree.xpath('//*[@id="shortstory"]')
-        # if p is not None and len(p) > 0:
-        #     e = p[0]
-        #
-        #     feed.x_rss_url = self.__url
-        #     feed.x_rss_id = self.__extract_id(e, '//div[@class="content clear"]')
-        #     feed.subject = self.__extract_tag(e, '//h1[@class="title_h"]', 0).text
-        #     feed.x_rss_tags = self.__extract_tag(e, '//a', 1).text
-        #     if feed.x_rss_tags is None or feed.x_rss_tags == 'Random':
-        #         feed.x_rss_tags = self.__extract_keywords()
-        #
-        #     e = self.__remove_element(e, '//div[@class="date"]')
-        #     e = self.__remove_element(e, '//div[@class="detail clear"]')
-        #     e = self.__remove_element(e, '//div[@class="rating"]')
-        #     e.append(tag)
-        #
-        #     feed.contents = tostring(e)
-
         element = self._content.find('div', id='shortstory')
         if element is not None:
+
             feed.x_rss_url = self.__url
             feed.x_rss_id = self._get_rss_id(element)
             feed.subject = self._get_title(element)
-            # feed.x_rss_tags = self.__extract_tag(e, '//a', 1).text
-            # if feed.x_rss_tags is None or feed.x_rss_tags == 'Random':
-            #     feed.x_rss_tags = self.__extract_keywords()
-            #
-            # e = self.__remove_element(e, '//div[@class="date"]')
-            # e = self.__remove_element(e, '//div[@class="detail clear"]')
-            # e = self.__remove_element(e, '//div[@class="rating"]')
+            feed.x_rss_tags = self._get_tag(element)
+            if feed.x_rss_tags is None or feed.x_rss_tags == 'Random':
+                feed.x_rss_tags = self._get_keywords(feed.x_rss_tags)
+
+            element = self._removeTag(element, 'div', 'date')
+            element = self._removeTag(element, 'div', 'detail clear')
+            element = self._removeTag(element, 'div', 'rating')
+
+            soap = BeautifulSoup(str(element), 'lxml')
+            tag = soap.new_tag('a', href=feed.x_rss_url)
+            tag.string = self._getPageTitle(feed.subject)
+            soap.append(tag)
+            feed.contents = str(soap)
 
 
-    # def get_next_page_url(self):
-    #     p = self.__page_tree.xpath('//div[@class="pagess"]')
-    #     if p is not None and len(p) > 0:
-    #         e = p[0]
-    #         retValue = e[len(e) - 1].get("href")
-    #         return retValue
-        
+    def get_next_page_url(self):
+        e = self._content.find('div', class_='pagess')
+        if e is not None:
+            pages = e.findAll('a')
+            if pages is not None and len(pages) > 0:
+              return pages[-1].get('href')

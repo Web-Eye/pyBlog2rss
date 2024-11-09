@@ -106,6 +106,7 @@ class pyBlogCore(object):
 
                     url = self.__url
                     page_count = 0
+                    deathCount = 0
                
                     while url is not None:
 
@@ -130,14 +131,15 @@ class pyBlogCore(object):
 
                                     exists = self.__feed_exists(feed.x_rss_id)
                                     if not exists:
+                                        deathCount = 0
                                         self.__insert_feed(feed)
                                     else:
-                                        break
+                                        deathCount += 1
 
-                        if exists:
+                        if deathCount > 9:
                             break
 
-                        # url = page.get_next_page_url()
+                        url = page.get_next_page_url()
 
                     self.__process_mails(self.__project_id)
 

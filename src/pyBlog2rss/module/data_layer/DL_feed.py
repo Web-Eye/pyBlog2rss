@@ -31,6 +31,7 @@ class DL_feed(object):
         self.__x_rss_tags = None
         self.__subject = None
         self.__contents = None
+        self.__valid = None
 
     @property
     def x_rss_id(self):
@@ -72,5 +73,13 @@ class DL_feed(object):
     def contents(self, contents):
         self.__contents = contents
 
+    @property
+    def valid(self):
+        return self.__valid
+
+    @valid.setter
+    def valid(self, valid):
+        self.__valid = valid
+
     def isValid(self):
-        return self.__x_rss_id and self.__x_rss_url and self.__contents
+        return self.__valid and self.__x_rss_id and self.__x_rss_url and self.__contents

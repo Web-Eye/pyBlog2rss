@@ -32,6 +32,8 @@ class pyBlogCore(object):
         self.__url = None
         self.__email_recipient = None
         self.__default_page_count = None
+        self.__hoster_whitelist = None
+        self.__hoster_blacklist = None
 
         self.__conn = database_connect(connectionstring)
         if self.__conn is None:
@@ -86,8 +88,9 @@ class pyBlogCore(object):
     def start(self):
 
         if self.__conn is not None:
-            query = "SELECT project_id, web_page, email_recipient, default_page_count, activated FROM wrss_project " \
-                    "WHERE activated;"
+            query = "   SELECT project_id, web_page, email_recipient, default_page_count, hoster_whitelist," \
+                    "          hoster_blacklist, activated FROM wrss_project" \
+                    "   WHERE activated;"
 
             cur = open_cursor(self.__conn, query, psycopg2.extras.DictCursor)
             if cur is not None:
@@ -103,6 +106,8 @@ class pyBlogCore(object):
                     self.__url = row['web_page']
                     self.__email_recipient = row['email_recipient']
                     self.__default_page_count = row['default_page_count']
+                    self.__hoster_whitelist = row['hoster_whitelist']
+                    self.__hoster_blacklist = row['hoster_blacklist']
 
                     url = self.__url
                     page_count = 0
@@ -125,7 +130,7 @@ class pyBlogCore(object):
                                 sub_page = pyBlogPage(sub_url)
                                 feed = DL_feed()
                                 feed.x_rss_feed = self.__url
-                                sub_page.parse_entry(feed)
+                                sub_page.parse_entry(feed, self.__hoster_whitelist, self.__hoster_blacklist)
                                 valid = feed.isValid() and not self.__feed_blacklisted(feed.x_rss_tags)
                                 if valid:
 

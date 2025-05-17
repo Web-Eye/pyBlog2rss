@@ -14,9 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from logging import exception
+from operator import truediv
 
 import requests
+import re
 from bs4 import BeautifulSoup
 
 
@@ -39,6 +40,8 @@ class pyBlogPage(object):
         if link is not None and link.get('href') is not None:
             return link['href']
 
+        return None
+
     @staticmethod
     def _get_rss_id(content):
         element = content.find('div', class_='content clear')
@@ -47,11 +50,15 @@ class pyBlogPage(object):
             if child is not None and child.get('id') is not None:
                 return child.get('id')
 
+        return None
+
     @staticmethod
     def _get_title(content):
         element = content.find('h1', class_='title_h')
         if element is not None:
             return element.getText()
+
+        return None
 
     @staticmethod
     def _get_tag(content):
@@ -60,6 +67,8 @@ class pyBlogPage(object):
             elements = parent.findAll('a')
             if elements is not None and len(elements) > 1:
                 return elements[-1].getText()
+
+        return None
 
     @staticmethod
     def _removeTag(content, name, class_):
@@ -97,26 +106,59 @@ class pyBlogPage(object):
                         
         return retValue
 
-    def parse_entry(self, feed):
-        element = self._content.find('div', id='shortstory')
-        if element is not None:
+    def _isHosterFiltered(self, hoster_whitelist, hoster_blacklist):
+        if (hoster_whitelist and hoster_whitelist != '') or (hoster_blacklist and hoster_blacklist != ''):
+            detailBlock = self._content.find('div', id=re.compile('news.*'))
+            test = detailBlock.find()
+            valid = None
 
-            feed.x_rss_url = self.__url
-            feed.x_rss_id = self._get_rss_id(element)
-            feed.subject = self._get_title(element)
-            feed.x_rss_tags = self._get_tag(element)
-            if feed.x_rss_tags is None or feed.x_rss_tags == 'Random':
-                feed.x_rss_tags = self._get_keywords(feed.x_rss_tags)
+            for t in test:
+                if t.name == 'a' and t.find('img') is None and t.has_attr('href'):
+                    h = ''.join(['' if ord(i) < 20 else i for i in t.getText()])
+                    if h != '' and t['href'] != '':
 
-            element = self._removeTag(element, 'div', 'date')
-            element = self._removeTag(element, 'div', 'detail clear')
-            element = self._removeTag(element, 'div', 'rating')
+                        if valid is None:
+                            valid = True
 
-            soap = BeautifulSoup(str(element), 'lxml')
-            tag = soap.new_tag('a', href=feed.x_rss_url)
-            tag.string = self._getPageTitle(feed.subject)
-            soap.append(tag)
-            feed.contents = str(soap)
+                        if hoster_whitelist and hoster_whitelist != '':
+                            match = re.match(hoster_whitelist, t['href'])
+                            valid = (not match is None)
+
+                        if valid and hoster_blacklist and hoster_blacklist != '':
+                            match = re.match(hoster_blacklist, t['href'])
+                            valid = (match is None)
+
+                        if valid:
+                            return False
+
+            return True
+
+        return False
+
+    def parse_entry(self, feed, hoster_whitelist, hoster_blacklist):
+
+        feed.valid = not self._isHosterFiltered(hoster_whitelist, hoster_blacklist)
+
+        if feed.valid:
+            element = self._content.find('div', id='shortstory')
+            if element is not None:
+
+                feed.x_rss_url = self.__url
+                feed.x_rss_id = self._get_rss_id(element)
+                feed.subject = self._get_title(element)
+                feed.x_rss_tags = self._get_tag(element)
+                if feed.x_rss_tags is None or feed.x_rss_tags == 'Random':
+                    feed.x_rss_tags = self._get_keywords(feed.x_rss_tags)
+
+                element = self._removeTag(element, 'div', 'date')
+                element = self._removeTag(element, 'div', 'detail clear')
+                element = self._removeTag(element, 'div', 'rating')
+
+                soap = BeautifulSoup(str(element), 'lxml')
+                tag = soap.new_tag('a', href=feed.x_rss_url)
+                tag.string = self._getPageTitle(feed.subject)
+                soap.append(tag)
+                feed.contents = str(soap)
 
 
     def get_next_page_url(self):
@@ -125,3 +167,5 @@ class pyBlogPage(object):
             pages = e.findAll('a')
             if pages is not None and len(pages) > 0:
               return pages[-1].get('href')
+
+        return None

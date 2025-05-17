@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from logging import exception
 
 import requests
 from bs4 import BeautifulSoup
@@ -39,6 +38,8 @@ class pyBlogPage(object):
         if link is not None and link.get('href') is not None:
             return link['href']
 
+        return None
+
     @staticmethod
     def _get_rss_id(content):
         element = content.find('div', class_='content clear')
@@ -47,11 +48,15 @@ class pyBlogPage(object):
             if child is not None and child.get('id') is not None:
                 return child.get('id')
 
+        return None
+
     @staticmethod
     def _get_title(content):
         element = content.find('h1', class_='title_h')
         if element is not None:
             return element.getText()
+
+        return None
 
     @staticmethod
     def _get_tag(content):
@@ -60,6 +65,8 @@ class pyBlogPage(object):
             elements = parent.findAll('a')
             if elements is not None and len(elements) > 1:
                 return elements[-1].getText()
+
+        return None
 
     @staticmethod
     def _removeTag(content, name, class_):
@@ -125,3 +132,5 @@ class pyBlogPage(object):
             pages = e.findAll('a')
             if pages is not None and len(pages) > 0:
               return pages[-1].get('href')
+
+        return None

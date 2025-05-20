@@ -121,7 +121,6 @@ class pyBlogCore(object):
 
                         page = pyBlogPage(url)
                         entries = page.get_entries()
-                        exists = False
 
                         if entries is not None:
 

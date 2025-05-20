@@ -20,7 +20,7 @@ import requests
 import re
 from bs4 import BeautifulSoup
 import warnings
-from bs4 import GuessedAtParserWarning
+from bs4.builder import XMLParsedAsHTMLWarning
 
 
 class pyBlogPage(object):
@@ -28,7 +28,7 @@ class pyBlogPage(object):
 
     def __init__(self, url):
 
-        warnings.filterwarnings('ignore', category=GuessedAtParserWarning)
+        warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
 
         headers = {
             'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'

@@ -40,60 +40,67 @@ class pyBlogPage(object):
 
     @staticmethod
     def __extract_link(e):
-        link = e.find('a')
-        if link is not None and link.get('href') is not None:
-            return link['href']
+        if e is not None:
+            link = e.find('a')
+            if link is not None and link.get('href') is not None:
+                return link['href']
 
         return None
 
     @staticmethod
     def _get_rss_id(content):
-        element = content.find('div', class_='content clear')
-        if element is not None:
-            child = element.findChild()
-            if child is not None and child.get('id') is not None:
-                return child.get('id')
+        if content is not None:
+            element = content.find('div', class_='content clear')
+            if element is not None:
+                child = element.findChild()
+                if child is not None and child.get('id') is not None:
+                    return child.get('id')
 
         return None
 
     @staticmethod
     def _get_title(content):
-        element = content.find('h1', class_='title_h')
-        if element is not None:
-            return element.getText()
+        if content is not None:
+            element = content.find('h1', class_='title_h')
+            if element is not None:
+                return element.getText()
 
         return None
 
     @staticmethod
     def _get_tag(content):
-        parent = content.find('div', class_='date')
-        if parent is not None:
-            elements = parent.findAll('a')
-            if elements is not None and len(elements) > 1:
-                return elements[-1].getText()
+        if content is not None:
+            parent = content.find('div', class_='date')
+            if parent is not None:
+                elements = parent.findAll('a')
+                if elements is not None and len(elements) > 1:
+                    return elements[-1].getText()
 
         return None
 
     @staticmethod
     def _removeTag(content, name, class_):
-        element = content.find(name, class_=class_)
-        if element is not None:
-            element.decompose()
+        if content is not None:
+            element = content.find(name, class_=class_)
+            if element is not None:
+                element.decompose()
 
         return content
 
     def _get_keywords(self, default):
-        e = self._content.find('meta', attrs={"name": "keywords"})
-        if e is not None:
-            if e.get('content') is not None:
-                default = e.get('content')
+        if self._content is not None:
+            e = self._content.find('meta', attrs={"name": "keywords"})
+            if e is not None:
+                if e.get('content') is not None:
+                    default = e.get('content')
 
         return default
 
     def _getPageTitle(self, default):
-        e = self._content.find('title')
-        if e is not None:
-            default = e.getText()
+        if self._content is not None:
+            e = self._content.find('title')
+            if e is not None:
+                default = e.getText()
 
         return default
 
@@ -101,47 +108,50 @@ class pyBlogPage(object):
     def get_entries(self):
 
         retValue = []
-        elements = self._content.findAll('div', id='shortstory')
-        if elements is not None:
-            for e in elements:
-                link = self.__extract_link(e)
-                if link is not None:
-                    retValue.append(link)
+        if self._content is not None:
+            elements = self._content.findAll('div', id='shortstory')
+            if elements is not None:
+                for e in elements:
+                    link = self.__extract_link(e)
+                    if link is not None:
+                        retValue.append(link)
                         
         return retValue
 
     def _isHosterFiltered(self, hoster_whitelist, hoster_blacklist):
-        if (hoster_whitelist and hoster_whitelist != '') or (hoster_blacklist and hoster_blacklist != ''):
-            detailBlock = self._content.find('div', id=re.compile('news.*'))
-            test = detailBlock.find()
-            valid = None
+        if self._content is not None:
+            if (hoster_whitelist and hoster_whitelist != '') or (hoster_blacklist and hoster_blacklist != ''):
+                detailBlock = self._content.find('div', id=re.compile('news.*'))
+                if detailBlock is not None:
+                    test = detailBlock.find()
+                    valid = None
 
-            for t in test:
-                if t.name == 'a' and t.find('img') is None and t.has_attr('href'):
-                    h = ''.join(['' if ord(i) < 20 else i for i in t.getText()])
-                    if h != '' and t['href'] != '':
+                    for t in test:
+                        if t.name == 'a' and t.find('img') is None and t.has_attr('href'):
+                            h = ''.join(['' if ord(i) < 20 else i for i in t.getText()])
+                            if h != '' and t['href'] != '':
 
-                        if valid is None:
-                            valid = True
+                                if valid is None:
+                                    valid = True
 
-                        if hoster_whitelist and hoster_whitelist != '':
-                            match = re.match(hoster_whitelist, t['href'])
-                            valid = (not match is None)
+                                if hoster_whitelist and hoster_whitelist != '':
+                                    match = re.match(hoster_whitelist, t['href'])
+                                    valid = (not match is None)
 
-                        if valid and hoster_blacklist and hoster_blacklist != '':
-                            match = re.match(hoster_blacklist, t['href'])
-                            valid = (match is None)
+                                if valid and hoster_blacklist and hoster_blacklist != '':
+                                    match = re.match(hoster_blacklist, t['href'])
+                                    valid = (match is None)
 
-                        if valid:
-                            return False
+                                if valid:
+                                    return False
 
-            return True
+                    return True
 
         return False
 
     def parse_entry(self, feed, hoster_whitelist, hoster_blacklist):
 
-        if self._content:
+        if self._content is not None:
 
             feed.valid = not self._isHosterFiltered(hoster_whitelist, hoster_blacklist)
 
@@ -168,10 +178,11 @@ class pyBlogPage(object):
 
 
     def get_next_page_url(self):
-        e = self._content.find('div', class_='pagess')
-        if e is not None:
-            pages = e.findAll('a')
-            if pages is not None and len(pages) > 0:
-              return pages[-1].get('href')
+        if self._content is not None:
+            e = self._content.find('div', class_='pagess')
+            if e is not None:
+                pages = e.findAll('a')
+                if pages is not None and len(pages) > 0:
+                  return pages[-1].get('href')
 
         return None

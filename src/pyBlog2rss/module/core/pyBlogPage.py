@@ -30,12 +30,16 @@ class pyBlogPage(object):
 
         warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
 
+        session = requests.session()
+        session.proxies = {"http": "socks5h://localhost:9050", "https": "socks5h://localhost:9050"}
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
         }
 
         self.__url = url
-        page = requests.get(url, headers=headers)
+        # page = requests.get(url, headers=headers)
+        page = session.get(url, headers=headers)
         self._content = BeautifulSoup(page.content, 'lxml')
 
     @staticmethod

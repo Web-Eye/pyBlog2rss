@@ -14,7 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-from operator import truediv
+import time
+from stem import Signal
+from stem.control import Controller
+
 
 import requests
 import re
@@ -30,17 +33,70 @@ class pyBlogPage(object):
 
         warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
 
-        session = requests.session()
-        session.proxies = {"http": "socks5h://localhost:9050", "https": "socks5h://localhost:9050"}
-
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-        }
+        # session = requests.session()
+        # session.proxies = {"http": "socks5h://localhost:9050", "https": "socks5h://localhost:9050"}
+        #
+        # headers = {
+        #     'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+        # }
+        #
+        # self.__url = url
+        # # page = requests.get(url, headers=headers)
+        # page = session.get(url, headers=headers)
 
         self.__url = url
-        # page = requests.get(url, headers=headers)
-        page = session.get(url, headers=headers)
+        page = self.get_with_retry(url)
         self._content = BeautifulSoup(page.content, 'lxml')
+
+    @staticmethod
+    def create_session():
+        s = requests.Session()
+        s.proxies = {
+            "http": "socks5h://localhost:9050",
+            "https": "socks5h://localhost:9050",
+        }
+        return s
+
+    @staticmethod
+    def renew_tor_ip():
+        with Controller.from_port(port=9051) as c:
+            c.authenticate()
+            c.signal(Signal.NEWNYM)
+
+    def get_with_retry(self, url, max_retries=3, retry_delay=3):
+        for attempt in range(1, max_retries + 1):
+
+            session = self.create_session()
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+            }
+
+            try:
+                response = session.get(url, timeout=30, headers=headers)
+
+                if response.status_code == 403:
+                    raise ForbiddenError("403 Forbidden – Exit probably blocked")
+
+                response.raise_for_status()
+                return response
+
+            except ForbiddenError as e:
+                session.close()
+
+                if attempt == max_retries:
+                    raise
+
+                # print(f"[{attempt}/{max_retries}] 403 erhalten → neue Tor-IP...")
+                self.renew_tor_ip()
+
+                time.sleep(retry_delay)
+
+            except requests.RequestException:
+                session.close()
+                raise
+
+        raise RuntimeError("Unreachable state")
 
     @staticmethod
     def __extract_link(e):
@@ -190,3 +246,7 @@ class pyBlogPage(object):
                   return pages[-1].get('href')
 
         return None
+
+
+class ForbiddenError(Exception):
+    pass

@@ -49,31 +49,24 @@ class pyBlogPage(object):
         self._content = BeautifulSoup(page.content, 'lxml')
 
     @staticmethod
-    def create_session():
-        s = requests.Session()
-        s.proxies = {
-            "http": "socks5h://localhost:9050",
-            "https": "socks5h://localhost:9050",
-        }
-        return s
-
-    @staticmethod
     def renew_tor_ip():
         with Controller.from_port(port=9051) as c:
             c.authenticate()
             c.signal(Signal.NEWNYM)
 
     def get_with_retry(self, url, max_retries=3, retry_delay=3):
+
+        proxies = { }
+
         for attempt in range(1, max_retries + 1):
 
-            session = self.create_session()
-
+            session = requests.Session()
             headers = {
                 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
             }
 
             try:
-                response = session.get(url, timeout=30, headers=headers)
+                response = session.get(url, timeout=30, headers=headers, proxies=proxies)
 
                 if response.status_code == 403:
                     raise ForbiddenError("403 Forbidden – Exit probably blocked")
@@ -84,13 +77,18 @@ class pyBlogPage(object):
             except ForbiddenError as e:
                 session.close()
 
+                if attempt == 1:
+                    proxies = {
+                        "http": "socks5h://localhost:9050",
+                        "https": "socks5h://localhost:9050",
+                    }
+
                 if attempt == max_retries:
                     raise
 
-                # print(f"[{attempt}/{max_retries}] 403 erhalten → neue Tor-IP...")
-                self.renew_tor_ip()
-
-                time.sleep(retry_delay)
+                if attempt > 1:
+                    self.renew_tor_ip()
+                    time.sleep(retry_delay)
 
             except requests.RequestException:
                 session.close()

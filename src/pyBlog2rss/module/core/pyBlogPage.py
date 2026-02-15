@@ -17,6 +17,9 @@
 import time
 from stem import Signal
 from stem.control import Controller
+import logging
+import traceback
+import sys
 
 
 import requests
@@ -31,6 +34,12 @@ class pyBlogPage(object):
 
     def __init__(self, url):
 
+        logging.basicConfig(
+            filename="/var/log/pyBlog2rss.log",
+            level=logging.DEBUG,
+            format="%(asctime)s [%(levelname)s] %(message)s",
+        )
+
         warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
 
         # session = requests.session()
@@ -44,57 +53,99 @@ class pyBlogPage(object):
         # # page = requests.get(url, headers=headers)
         # page = session.get(url, headers=headers)
 
+        logging.debug(f"pyBlogPage __init__ {url}")
         self.__url = url
-        page = self.get_with_retry(url)
+        page = self.get_with_fallback(url)
+        logging.debug(f"pyBlogPage __init__ get_content successfully")
         self._content = BeautifulSoup(page.content, 'lxml')
+        logging.debug(f"pyBlogPage __init__ end....")
 
     @staticmethod
     def renew_tor_ip():
-        with Controller.from_port(port=9051) as c:
-            c.authenticate()
-            c.signal(Signal.NEWNYM)
+        logging.debug(f"renew tor ip")
 
-    def get_with_retry(self, url, max_retries=3, retry_delay=3):
+        try:
+            with Controller.from_port(port=9051) as c:
+                c.authenticate()
+                c.signal(Signal.NEWNYM)
+                logging.debug("successfully sent signal tor-renew")
 
-        proxies = { }
+        except Exception as e:
+            logging.error("Failed to renew Tor IP")
+            logging.error(str(e))
+            logging.error(traceback.format_exc())
 
-        for attempt in range(1, max_retries + 1):
+    @staticmethod
+    def create_session(use_tor=False):
+        logging.debug(f"create session use_tor={use_tor}")
+        s = requests.Session()
 
-            session = requests.Session()
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+        if use_tor:
+            s.proxies = {
+                "http": "socks5h://localhost:9050",
+                "https": "socks5h://localhost:9050",
             }
 
+        s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+        })
+
+        return s
+
+    def get_with_fallback(self, url, max_retries = 2, max_tor_retries=2, timeout=10):
+
+        logging.debug(f"get with fallback {url}")
+        for attempt in range(1, max_retries + 1):
             try:
-                response = session.get(url, timeout=30, headers=headers, proxies=proxies)
+                with self.create_session(use_tor=False) as session:
+                    r = session.get(url, timeout=(timeout, timeout*3))
 
-                if response.status_code == 403:
-                    raise ForbiddenError("403 Forbidden – Exit probably blocked")
+                    if r.status_code == 403:
+                        raise requests.HTTPError(response=r)
 
-                response.raise_for_status()
-                return response
+                    r.raise_for_status()
+                    return r
 
-            except ForbiddenError as e:
-                session.close()
+            except requests.Timeout:
+                logging.debug("timeout, retrying...")
+                time.sleep(timeout)
 
-                if attempt == 1:
-                    proxies = {
-                        "http": "socks5h://localhost:9050",
-                        "https": "socks5h://localhost:9050",
-                    }
+            except requests.ConnectionError:
+                logging.debug("connection error, retrying...")
+                time.sleep(timeout)
 
-                if attempt == max_retries:
-                    raise
-
-                if attempt > 1:
-                    self.renew_tor_ip()
-                    time.sleep(retry_delay)
-
-            except requests.RequestException:
-                session.close()
+            except requests.HTTPError as e:
+                if e.response.status_code == 403:
+                    logging.debug("getting HTTPCode 403")
+                    break
                 raise
 
-        raise RuntimeError("Unreachable state")
+        logging.debug("Retry limit reached or getting or getting HTTPCode 403: switching to Tor")
+
+        for attempt in range(1, max_tor_retries + 1):
+            try:
+                with self.create_session(use_tor=True) as session:
+                    r = session.get(url, timeout=(timeout, timeout*3))
+
+                    if r.status_code == 403:
+                        logging.debug("getting HTTPCode 403: renewing IP")
+                        self.renew_tor_ip()
+                        time.sleep(timeout)
+                        continue
+
+                    r.raise_for_status()
+                    return r
+
+            except requests.Timeout:
+                logging.debug("timeout, retrying...")
+                time.sleep(timeout)
+
+            except requests.ConnectionError:
+                logging.debug("connection error, retrying...")
+                time.sleep(timeout)
+
+        logging.error("Failed after direct and tor retries")
+        raise RuntimeError("Failed after direct and tor retries")
 
     @staticmethod
     def __extract_link(e):
@@ -247,4 +298,7 @@ class pyBlogPage(object):
 
 
 class ForbiddenError(Exception):
+    pass
+
+class BlockedError(Exception):
     pass

@@ -56,9 +56,10 @@ class pyBlogPage(object):
         logging.debug(f"pyBlogPage __init__ {url}")
         self.__url = url
         page = self.get_with_fallback(url)
-        logging.debug(f"pyBlogPage __init__ get_content successfully")
-        self._content = BeautifulSoup(page.content, 'lxml')
-        logging.debug(f"pyBlogPage __init__ end....")
+        if page is not None and page.content is not None:
+            logging.debug(f"pyBlogPage __init__ get_content successfully")
+            self._content = BeautifulSoup(page.content, 'lxml')
+            logging.debug(f"pyBlogPage __init__ end....")
 
     @staticmethod
     def renew_tor_ip():
@@ -121,6 +122,7 @@ class pyBlogPage(object):
                 raise
 
         logging.debug("Retry limit reached or getting or getting HTTPCode 403: switching to Tor")
+        lastError = None
 
         for attempt in range(1, max_tor_retries + 1):
             try:
@@ -137,15 +139,20 @@ class pyBlogPage(object):
                     return r
 
             except requests.Timeout:
+                lastError = requests.Timeout
                 logging.debug("timeout, retrying...")
                 time.sleep(timeout)
 
             except requests.ConnectionError:
+                lastError = requests.ConnectionError
                 logging.debug("connection error, retrying...")
                 time.sleep(timeout)
 
         logging.error("Failed after direct and tor retries")
-        raise RuntimeError("Failed after direct and tor retries")
+        if lastError != requests.Timeout:
+            raise RuntimeError("Failed after direct and tor retries")
+
+        return None
 
     @staticmethod
     def __extract_link(e):

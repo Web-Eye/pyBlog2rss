@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-# Copyright 2024 WebEye
+# Copyright 2026 WebEye
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 import time
+import uuid
+
 from stem import Signal
 from stem.control import Controller
 import logging
@@ -41,17 +43,6 @@ class pyBlogPage(object):
         )
 
         warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
-
-        # session = requests.session()
-        # session.proxies = {"http": "socks5h://localhost:9050", "https": "socks5h://localhost:9050"}
-        #
-        # headers = {
-        #     'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-        # }
-        #
-        # self.__url = url
-        # # page = requests.get(url, headers=headers)
-        # page = session.get(url, headers=headers)
 
         logging.debug(f"pyBlogPage __init__ {url}")
         self.__url = url
@@ -82,9 +73,10 @@ class pyBlogPage(object):
         s = requests.Session()
 
         if use_tor:
+            session_id = uuid.uuid4().hex
             s.proxies = {
-                "http": "socks5h://localhost:9050",
-                "https": "socks5h://localhost:9050",
+                "http": f"socks5h://{session_id}:x@localhost:9050",
+                "https": f"socks5h://{session_id}:x@localhost:9050",
             }
 
         s.headers.update({
@@ -93,7 +85,7 @@ class pyBlogPage(object):
 
         return s
 
-    def get_with_fallback(self, url, max_retries = 2, max_tor_retries=2, timeout=10):
+    def get_with_fallback(self, url, max_retries = 2, max_tor_retries=2, timeout=5):
 
         logging.debug(f"get with fallback {url}")
         for attempt in range(1, max_retries + 1):
@@ -122,7 +114,7 @@ class pyBlogPage(object):
                 raise
 
         logging.debug("Retry limit reached or getting or getting HTTPCode 403: switching to Tor")
-        lastError = None
+        last_exception = None
 
         for attempt in range(1, max_tor_retries + 1):
             try:
@@ -130,27 +122,35 @@ class pyBlogPage(object):
                     r = session.get(url, timeout=(timeout, timeout*3))
 
                     if r.status_code == 403:
-                        logging.debug("getting HTTPCode 403: renewing IP")
-                        self.renew_tor_ip()
-                        time.sleep(timeout)
+                        logging.debug(f"403 on Tor attempt {attempt} → new circuit next try")
+                        # logging.debug("getting HTTPCode 403: renewing IP")
+                        # self.renew_tor_ip()
+                        # time.sleep(timeout)
                         continue
 
                     r.raise_for_status()
                     return r
 
-            except requests.Timeout:
-                lastError = requests.Timeout
-                logging.debug("timeout, retrying...")
-                time.sleep(timeout)
+            except requests.Timeout as et:
+                last_exception = et
+                logging.debug(f"Timeout on Tor attempt {attempt}")
+                time.sleep(1)
 
-            except requests.ConnectionError:
-                lastError = requests.ConnectionError
-                logging.debug("connection error, retrying...")
-                time.sleep(timeout)
+            except requests.ConnectionError as ece:
+                last_exception = ece
+                logging.debug(f"Connection error on Tor attempt {attempt}")
+                time.sleep(1)
 
-        logging.error("Failed after direct and tor retries")
-        if lastError != requests.Timeout:
-            raise RuntimeError("Failed after direct and tor retries")
+        if isinstance(last_exception, requests.Timeout):
+            logging.debug("Final result: timeout → returning None")
+            return None
+
+        if isinstance(last_exception, requests.ConnectionError):
+            logging.debug("Final result: connection error → returning None")
+            return None
+
+        if last_exception is not None:
+            raise RuntimeError("Failed after direct and tor retries") from last_exception
 
         return None
 

@@ -119,31 +119,35 @@ class pyBlogCore(object):
                         if page_count > self.__default_page_count:
                             break
 
-                        page = pyBlogPage(url)
-                        entries = page.get_entries()
+                        try:
+                            page = pyBlogPage(url)
+                            entries = page.get_entries()
 
-                        if entries is not None:
+                            if entries is not None:
 
-                            for sub_url in entries:
+                                for sub_url in entries:
 
-                                sub_page = pyBlogPage(sub_url)
-                                feed = DL_feed()
-                                feed.x_rss_feed = self.__url
-                                sub_page.parse_entry(feed, self.__hoster_whitelist, self.__hoster_blacklist)
-                                valid = feed.isValid() and not self.__feed_blacklisted(feed.x_rss_tags)
-                                if valid:
+                                    sub_page = pyBlogPage(sub_url)
+                                    feed = DL_feed()
+                                    feed.x_rss_feed = self.__url
+                                    sub_page.parse_entry(feed, self.__hoster_whitelist, self.__hoster_blacklist)
+                                    valid = feed.isValid() and not self.__feed_blacklisted(feed.x_rss_tags)
+                                    if valid:
 
-                                    exists = self.__feed_exists(feed.x_rss_id)
-                                    if not exists:
-                                        deathCount = 0
-                                        self.__insert_feed(feed)
-                                    else:
-                                        deathCount += 1
+                                        exists = self.__feed_exists(feed.x_rss_id)
+                                        if not exists:
+                                            deathCount = 0
+                                            self.__insert_feed(feed)
+                                        else:
+                                            deathCount += 1
 
-                        if deathCount > 9:
-                            break
+                            if deathCount > 9:
+                                break
 
-                        url = page.get_next_page_url()
+                            url = page.get_next_page_url()
+
+                        except ValueError as e:
+                            pass
 
                     self.__process_mails(self.__project_id)
 

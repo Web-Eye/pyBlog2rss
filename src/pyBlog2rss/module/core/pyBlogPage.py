@@ -46,11 +46,16 @@ class pyBlogPage(object):
 
         logging.debug(f"pyBlogPage __init__ {url}")
         self.__url = url
+        self._content = None
+
         page = self.get_with_fallback(url)
-        if page is not None and page.content is not None:
-            logging.debug(f"pyBlogPage __init__ get_content successfully")
-            self._content = BeautifulSoup(page.content, 'lxml')
-            logging.debug(f"pyBlogPage __init__ end....")
+
+        if not page or not getattr(page, "content", None):
+            logging.debug("No valid page returned")
+            raise ValueError("Invalid state")
+
+        self._content = BeautifulSoup(page.content, "lxml")
+        logging.debug(f"pyBlogPage __init__ end....")
 
     @staticmethod
     def renew_tor_ip():

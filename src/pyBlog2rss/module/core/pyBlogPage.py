@@ -314,7 +314,7 @@ class pyBlogPage(object):
 
             feed.valid = not self._isHosterFiltered(hoster_whitelist, hoster_blacklist)
 
-            if feed.valid:
+            if True:
                 element = self._content.find('div', id='shortstory')
                 if element is not None:
 

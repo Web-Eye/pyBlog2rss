@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2024 WebEye
+# Copyright 2026 WebEye
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -52,18 +52,10 @@ def execute_non_query(conn, operation, parameters):
 
 
 def execute_scalar(conn, operation, parameters):
-    retValue = False
     cur = conn.cursor()
-
     try:
-
         cur.execute(operation, parameters)
         row = cur.fetchone()
-        retValue = row[0]
-
-    except Exception as e:
-        print(e)
-
-    cur.close()
-
-    return retValue
+        return row[0] if row is not None else None
+    finally:
+        cur.close()

@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-# Copyright 2024 WebEye
+# Copyright 2026 WebEye
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,21 +45,23 @@ class pyBlogCore(object):
         if self.__conn is not None:
             self.__conn.close()
 
-    def __insert_feed(self, feed):
+    def __insert_feed(self, feed, passed):
         query = 'INSERT INTO wrss_feed(project_id, x_rss_id, x_rss_url, x_rss_tags, subject, contents, passed) ' \
                 'VALUES (%s, %s, %s, %s, %s, %s, %s);'
 
         return execute_non_query(self.__conn, query,
                                  (self.__project_id, feed.x_rss_id, feed.x_rss_url, feed.x_rss_tags, feed.subject,
-                                  feed.contents, 'false'))
+                                  feed.contents, passed))
 
     def __feed_exists(self, x_rss_id):
-        return execute_scalar(self.__conn, "SELECT COUNT(*) FROM wrss_feed WHERE x_rss_id = %s", (x_rss_id,)) != 0
+        return execute_scalar(self.__conn, "SELECT EXISTS (SELECT 1 FROM wrss_feed WHERE x_rss_id = %s)", (x_rss_id,))
+
+    def __url_exists(self, x_rss_url):
+        return execute_scalar(self.__conn,"SELECT EXISTS (SELECT 1 FROM wrss_feed WHERE x_rss_url = %s)",(x_rss_url,))
      
     def __feed_blacklisted(self, x_rss_tag):
-        query = "SELECT Count(*) FROM wrss_blacklist WHERE %s LIKE '%%' || matchcode || '%%'"
-
-        return execute_scalar(self.__conn, query, (x_rss_tag, )) != 0
+        query = "SELECT EXISTS (SELECT 1 FROM wrss_blacklist WHERE %s LIKE '%%' || matchcode || '%%')"
+        return execute_scalar(self.__conn, query, (x_rss_tag,))
 
     def __process_mails(self, project_id):
         query = "SELECT feed_id, project_id, x_rss_id, x_rss_url, x_rss_tags, subject, contents FROM wrss_feed " \
@@ -115,6 +117,9 @@ class pyBlogCore(object):
                
                     while url is not None:
 
+                        if deathCount > 9:
+                            break
+
                         page_count = page_count + 1
                         if page_count > self.__default_page_count:
                             break
@@ -127,6 +132,13 @@ class pyBlogCore(object):
 
                                 for sub_url in entries:
 
+                                    if deathCount > 9:
+                                        break
+
+                                    if self.__url_exists(sub_url):
+                                        deathCount += 1
+                                        continue
+
                                     sub_page = pyBlogPage(sub_url)
                                     feed = DL_feed()
                                     feed.x_rss_feed = self.__url
@@ -137,12 +149,14 @@ class pyBlogCore(object):
                                         exists = self.__feed_exists(feed.x_rss_id)
                                         if not exists:
                                             deathCount = 0
-                                            self.__insert_feed(feed)
+                                            self.__insert_feed(feed, 'false')
                                         else:
                                             deathCount += 1
 
-                            if deathCount > 9:
-                                break
+                                    else:
+                                        self.__insert_feed(feed, 'true')
+
+
 
                             url = page.get_next_page_url()
 

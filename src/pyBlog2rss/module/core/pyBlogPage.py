@@ -90,47 +90,69 @@ class pyBlogPage(object):
 
         return s
 
-    def get_with_fallback(self, url, max_retries = 2, max_tor_retries=2, timeout=5):
+    def get_with_fallback(self, url, max_retries=2, max_tor_retries=2, timeout=5):
 
         logging.debug(f"get with fallback {url}")
+
         for attempt in range(1, max_retries + 1):
             try:
                 with self.create_session(use_tor=False) as session:
-                    r = session.get(url, timeout=(timeout, timeout*3))
+                    r = session.get(url, timeout=(timeout, timeout * 3))
 
                     if r.status_code == 403:
+                        ray_id = r.headers.get("CF-Ray")
+                        logging.debug(
+                            f"HTTP 403 on direct request"
+                            f"{f', Cloudflare Ray ID={ray_id}' if ray_id else ''}"
+                        )
                         raise requests.HTTPError(response=r)
 
                     r.raise_for_status()
                     return r
 
             except requests.Timeout:
-                logging.debug("timeout, retrying...")
+                logging.debug("Timeout on direct request, retrying...")
                 time.sleep(timeout)
 
             except requests.ConnectionError:
-                logging.debug("connection error, retrying...")
+                logging.debug("Connection error on direct request, retrying...")
                 time.sleep(timeout)
 
             except requests.HTTPError as e:
                 if e.response.status_code == 403:
-                    logging.debug("getting HTTPCode 403")
                     break
                 raise
 
-        logging.debug("Retry limit reached or getting or getting HTTPCode 403: switching to Tor")
+        logging.debug(
+            "Retry limit reached or HTTP 403: switching to Tor"
+        )
+
         last_exception = None
+        tor_403 = False
 
         for attempt in range(1, max_tor_retries + 1):
             try:
                 with self.create_session(use_tor=True) as session:
-                    r = session.get(url, timeout=(timeout, timeout*3))
+                    r = session.get(url, timeout=(timeout, timeout * 3))
 
                     if r.status_code == 403:
-                        logging.debug(f"403 on Tor attempt {attempt} → new circuit next try")
-                        # logging.debug("getting HTTPCode 403: renewing IP")
-                        # self.renew_tor_ip()
-                        # time.sleep(timeout)
+                        ray_id = r.headers.get("CF-Ray")
+
+                        logging.debug(
+                            f"HTTP 403 on Tor attempt {attempt}"
+                            f"{f', Cloudflare Ray ID={ray_id}' if ray_id else ''}"
+                        )
+
+                        tor_403 = True
+
+                        # Bei 403 neuen Tor-Circuit anfordern
+                        if attempt < max_tor_retries:
+                            logging.debug(
+                                "HTTP 403 on Tor → renewing Tor circuit"
+                            )
+                            self.renew_tor_ip()
+                            time.sleep(1)
+
                         continue
 
                     r.raise_for_status()
@@ -138,24 +160,40 @@ class pyBlogPage(object):
 
             except requests.Timeout as et:
                 last_exception = et
-                logging.debug(f"Timeout on Tor attempt {attempt}")
+                logging.debug(
+                    f"Timeout on Tor attempt {attempt}"
+                )
                 time.sleep(1)
 
             except requests.ConnectionError as ece:
                 last_exception = ece
-                logging.debug(f"Connection error on Tor attempt {attempt}")
+                logging.debug(
+                    f"Connection error on Tor attempt {attempt}"
+                )
                 time.sleep(1)
 
+        if tor_403:
+            logging.debug(
+                "Final result: HTTP 403 on direct request and Tor"
+            )
+            return None
+
         if isinstance(last_exception, requests.Timeout):
-            logging.debug("Final result: timeout → returning None")
+            logging.debug(
+                "Final result: timeout → returning None"
+            )
             return None
 
         if isinstance(last_exception, requests.ConnectionError):
-            logging.debug("Final result: connection error → returning None")
+            logging.debug(
+                "Final result: connection error → returning None"
+            )
             return None
 
         if last_exception is not None:
-            raise RuntimeError("Failed after direct and tor retries") from last_exception
+            raise RuntimeError(
+                "Failed after direct and tor retries"
+            ) from last_exception
 
         return None
 

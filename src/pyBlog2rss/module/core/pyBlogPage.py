@@ -252,7 +252,7 @@ class pyBlogPage(object):
             if e is not None:
                 if e.get('content') is not None:
                     content = e.get('content')
-                    if len(content) <= 200:
+                    if len(content) <= 100:
                         default = content
 
         return default

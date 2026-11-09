@@ -251,7 +251,9 @@ class pyBlogPage(object):
             e = self._content.find('meta', attrs={"name": "keywords"})
             if e is not None:
                 if e.get('content') is not None:
-                    default = e.get('content')
+                    content = e.get('content')
+                    if len(content) <= 200:
+                        default = content
 
         return default
 
